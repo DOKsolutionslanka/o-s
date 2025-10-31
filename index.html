@@ -1,0 +1,5025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Invoice Search by Site Code, Invoice No, or Customer Name</title>
+
+  <!-- jsPDF + AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* All existing styles remain the same */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,112C1248,107,1344,117,1392,122.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>') no-repeat;
+      background-size: cover;
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: white;
+      font-weight: 700;
+      margin-bottom: 10px;
+      font-size: 32px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      animation: fadeInDown 0.8s ease;
+    }
+
+    h2 {
+      text-align: center;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 30px;
+      font-weight: 400;
+      font-size: 18px;
+      animation: fadeInUp 0.8s ease 0.2s both;
+    }
+
+    .as-of-date {
+      text-align: center;
+      font-size: 16px;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 30px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.1);
+      padding: 10px 20px;
+      border-radius: 25px;
+      display: inline-block;
+      backdrop-filter: blur(10px);
+      animation: fadeInUp 0.8s ease 0.4s both;
+    }
+
+    .login-container {
+      max-width: 450px;
+      margin: 100px auto;
+      background: rgba(255,255,255,0.95);
+      padding: 50px;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+      backdrop-filter: blur(10px);
+      animation: slideInUp 0.6s ease;
+    }
+
+    .login-container h2 {
+      margin-top: 0;
+      color: #4a5568;
+      font-size: 24px;
+      margin-bottom: 30px;
+    }
+
+    .login-container input[type="text"],
+    .login-container input[type="password"] {
+      width: 100%;
+      padding: 15px 20px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      outline: none;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      background: #f7fafc;
+    }
+
+    .login-container input:focus {
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 15px 25px;
+      font-size: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+    }
+
+    .login-container button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+    }
+
+    .error-message {
+      color: #e53e3e;
+      text-align: center;
+      margin-top: 15px;
+      font-weight: 600;
+      background: #fed7d7;
+      padding: 10px;
+      border-radius: 8px;
+      animation: shake 0.5s ease;
+    }
+
+    .success-message {
+      color: #38a169;
+      text-align: center;
+      margin-top: 15px;
+      font-weight: 600;
+      background: #c6f6d5;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    #mainApp {
+      display: none;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .logout-btn {
+      display: block;
+      margin: 30px auto;
+      padding: 12px 30px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .search-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 25px;
+      margin-bottom: 40px;
+      animation: fadeInUp 0.8s ease 0.6s both;
+    }
+
+    .search-box {
+      background: rgba(255,255,255,0.95);
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      text-align: center;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255,255,255,0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .search-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+      background-size: 200% 100%;
+      animation: shimmer 3s infinite;
+    }
+
+    .search-box:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    }
+
+    .search-box h3 {
+      color: #4a5568;
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .search-box h3 i {
+      color: #667eea;
+      font-size: 20px;
+    }
+
+    .search-box input[type="text"],
+    .search-box input[type="month"] {
+      width: 100%;
+      padding: 15px 20px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      outline: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      background: #f7fafc;
+    }
+
+    .search-box input:focus {
+      border-color: #667eea;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+
+    .search-box button {
+      width: 100%;
+      padding: 15px 25px;
+      font-size: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .search-box button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+    }
+
+    .search-box button i {
+      font-size: 18px;
+    }
+
+    #results {
+      background: rgba(255,255,255,0.95);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+      margin-top: 20px;
+      animation: fadeInUp 0.5s ease;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 25px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 15px;
+      text-align: left;
+    }
+
+    th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    tr:hover {
+      background-color: #edf2f7;
+      transition: background-color 0.2s ease;
+    }
+
+    td.amount { 
+      text-align: right; 
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 600;
+    }
+
+    td.payment { 
+      color: #38a169; 
+      font-weight: 600;
+    }
+
+    td.overdue {
+      text-align: center;
+      font-weight: 600;
+      color: #e53e3e;
+      background-color: #fed7d7;
+      width: 80px;
+    }
+
+    td.overdue.days-0-30 {
+      color: #38a169;
+      background-color: #c6f6d5;
+    }
+
+    td.overdue.days-31-60 {
+      color: #d69e2e;
+      background-color: #faf089;
+    }
+
+    td.overdue.days-61-90 {
+      color: #dd6b20;
+      background-color: #fbd38d;
+    }
+
+    td.overdue.days-91-plus {
+      color: #e53e3e;
+      background-color: #fed7d7;
+    }
+
+    .section-title {
+      margin-top: 40px;
+      font-size: 24px;
+      font-weight: 700;
+      color: #4a5568;
+      border-bottom: 3px solid #667eea;
+      padding-bottom: 10px;
+      margin-bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+
+    .site-code-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      margin-bottom: 25px;
+      text-align: center;
+      font-size: 20px;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+    }
+
+    .not-found {
+      text-align: center;
+      font-weight: 700;
+      color: #e53e3e;
+      margin-top: 30px;
+      font-size: 18px;
+      background: #fed7d7;
+      padding: 20px;
+      border-radius: 12px;
+      animation: pulse 2s infinite;
+    }
+
+    .grand-total {
+      margin-top: 30px;
+      text-align: right;
+      font-size: 22px;
+      font-weight: 700;
+      color: #4a5568;
+      background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+      padding: 20px;
+      border-radius: 12px;
+      border-left: 5px solid #667eea;
+    }
+
+    .download-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    .download-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 25px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+      min-width: 200px;
+    }
+
+    .download-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+    }
+
+    .download-button.excel {
+      background: linear-gradient(135deg, #107c41 0%, #0e5e2e 100%);
+      box-shadow: 0 4px 15px rgba(16,124,65,0.3);
+    }
+
+    .download-button.excel:hover {
+      box-shadow: 0 6px 20px rgba(16,124,65,0.4);
+    }
+
+    .download-button.secondary {
+      background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+      box-shadow: 0 4px 15px rgba(108,117,125,0.3);
+    }
+
+    .download-button.secondary:hover {
+      box-shadow: 0 6px 20px rgba(108,117,125,0.4);
+    }
+
+    .download-button.secondary.excel {
+      background: linear-gradient(135deg, #6f8a52 0%, #5a6e42 100%);
+      box-shadow: 0 4px 15px rgba(111,138,82,0.3);
+    }
+
+    .download-button.secondary.excel:hover {
+      box-shadow: 0 6px 20px rgba(111,138,82,0.4);
+    }
+
+    a.site-link {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    a.site-link:hover {
+      background: rgba(102,126,234,0.1);
+      color: #764ba2;
+    }
+
+    /* New styles for invoice breakdown modal */
+    .invoice-link {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    .invoice-link:hover {
+      background: rgba(102,126,234,0.1);
+      color: #764ba2;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.5);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+      background-color: #fefefe;
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 20px;
+      width: 80%;
+      max-width: 800px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: modalFadeIn 0.4s;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px 15px; /* Reduced from 20px 30px */
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 18px; /* Reduced from 22px */
+      font-weight: 600;
+    }
+
+    .close {
+      color: white;
+      font-size: 22px; /* Reduced from 28px */
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: none;
+      border: none;
+    }
+
+    .close:hover {
+      opacity: 0.8;
+      transform: rotate(90deg);
+    }
+
+    .modal-body {
+      padding: 15px; /* Reduced from 30px */
+    }
+
+    .invoice-details {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px; /* Reduced from 20px */
+      margin-bottom: 15px; /* Reduced from 30px */
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-label {
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 5px;
+      font-size: 12px; /* Reduced from 14px */
+    }
+
+    .detail-value {
+      color: #2d3748;
+      font-size: 14px; /* Reduced from 16px */
+    }
+
+    .tax-breakdown {
+      margin-top: 15px; /* Reduced from 30px */
+    }
+
+    .tax-breakdown h3 {
+      color: #4a5568;
+      margin-bottom: 20px;
+      font-size: 16px; /* Reduced from 20px */
+      font-weight: 600;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 10px;
+    }
+
+    .tax-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+    .tax-table th, .tax-table td {
+      border: 1px solid #e2e8f0;
+      padding: 10px; /* Reduced from 15px */
+      text-align: left;
+    }
+
+    .tax-table th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tax-table tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    .tax-table tr:hover {
+      background-color: #edf2f7;
+      transition: background-color 0.2s ease;
+    }
+
+    .tax-table td.amount {
+      text-align: right;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 600;
+    }
+
+    .tax-table tr.total-row {
+      background-color: #e6f2ff;
+      font-weight: 700;
+    }
+
+    .tax-table tr.total-row td {
+      font-weight: 700;
+      color: #2d3748;
+    }
+
+    /* New style for outstanding amount */
+    .outstanding-amount {
+      background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+      border-left: 4px solid #667eea;
+      padding: 12px;
+      margin-top: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .outstanding-amount .label {
+      font-size: 12px;
+      color: #4a5568;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .outstanding-amount .value {
+      font-size: 18px;
+      color: #667eea;
+      font-weight: 700;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .summary-totals {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    .summary-card {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+      text-align: center;
+      transition: all 0.3s ease;
+      border: 1px solid #e2e8f0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .summary-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+    }
+
+    .summary-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+    }
+
+    .summary-card h3 {
+      margin: 0 0 15px 0;
+      color: #4a5568;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .summary-card .amount-big {
+      font-size: 20px;
+      font-weight: 700;
+      color: #667eea;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .age-summary-card {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+      text-align: center;
+      transition: all 0.3s ease;
+      border: 1px solid #e2e8f0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .age-summary-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+    }
+
+    .age-summary-card h3 {
+      margin: 0 0 15px 0;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .age-summary-card .amount-big {
+      font-size: 22px;
+      font-weight: 700;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .age-summary-card .percentage {
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 5px;
+    }
+
+    .age-summary-card.days-0-30 {
+      border-top: 4px solid #38a169;
+    }
+
+    .age-summary-card.days-0-30 h3 {
+      color: #38a169;
+    }
+
+    .age-summary-card.days-0-30 .amount-big {
+      color: #38a169;
+    }
+
+    .age-summary-card.days-0-30 .percentage {
+      color: #38a169;
+    }
+
+    .age-summary-card.days-31-60 {
+      border-top: 4px solid #d69e2e;
+    }
+
+    .age-summary-card.days-31-60 h3 {
+      color: #d69e2e;
+    }
+
+    .age-summary-card.days-31-60 .amount-big {
+      color: #d69e2e;
+    }
+
+    .age-summary-card.days-31-60 .percentage {
+      color: #d69e2e;
+    }
+
+    .age-summary-card.days-61-90 {
+      border-top: 4px solid #dd6b20;
+    }
+
+    .age-summary-card.days-61-90 h3 {
+      color: #dd6b20;
+    }
+
+    .age-summary-card.days-61-90 .amount-big {
+      color: #dd6b20;
+    }
+
+    .age-summary-card.days-61-90 .percentage {
+      color: #dd6b20;
+    }
+
+    .age-summary-card.days-91-180 {
+      border-top: 4px solid #e53e3e;
+    }
+
+    .age-summary-card.days-91-180 h3 {
+      color: #e53e3e;
+    }
+
+    .age-summary-card.days-91-180 .amount-big {
+      color: #e53e3e;
+    }
+
+    .age-summary-card.days-91-180 .percentage {
+      color: #e53e3e;
+    }
+
+    .age-summary-card.days-181-360 {
+      border-top: 4px solid #9f1239;
+    }
+
+    .age-summary-card.days-181-360 h3 {
+      color: #9f1239;
+    }
+
+    .age-summary-card.days-181-360 .amount-big {
+      color: #9f1239;
+    }
+
+    .age-summary-card.days-181-360 .percentage {
+      color: #9f1239;
+    }
+
+    .age-summary-card.days-360-plus {
+      border-top: 4px solid #7c2d12;
+    }
+
+    .age-summary-card.days-360-plus h3 {
+      color: #7c2d12;
+    }
+
+    .age-summary-card.days-360-plus .amount-big {
+      color: #7c2d12;
+    }
+
+    .age-summary-card.days-360-plus .percentage {
+      color: #7c2d12;
+    }
+
+    .age-table {
+      overflow-x: auto;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+    .age-table table {
+      min-width: 900px;
+      border-radius: 0;
+      font-size: 12px;
+    }
+
+    .age-table th, .age-table td {
+      padding: 8px 10px;
+    }
+
+    .age-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .sort-container {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 20px;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .sort-label {
+      font-weight: 600;
+      color: #4a5568;
+      font-size: 16px;
+    }
+
+    .sort-button {
+      padding: 10px 20px;
+      font-size: 14px;
+      background: white;
+      color: #4a5568;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 500;
+    }
+
+    .sort-button:hover {
+      border-color: #667eea;
+      color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102,126,234,0.2);
+    }
+
+    .sort-button.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-color: #667eea;
+      box-shadow: 0 4px 15px rgba(102,126,234,0.3);
+    }
+
+    .customer-selector {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .customer-selector label {
+      font-weight: 600;
+      color: #4a5568;
+      font-size: 16px;
+    }
+
+    .customer-selector select {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      outline: none;
+      background: white;
+      min-width: 300px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .customer-selector select:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+
+    .statement-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 30px;
+      background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+      border-radius: 15px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .statement-header h2 {
+      color: #4a5568;
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .statement-header .statement-date {
+      color: #718096;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    .customer-info {
+      background: #f8fafc;
+      padding: 25px;
+      border-radius: 15px;
+      margin-bottom: 25px;
+      border-left: 5px solid #667eea;
+      border: 1px solid #e2e8f0;
+    }
+
+    .customer-info h3 {
+      margin: 0 0 15px 0;
+      color: #4a5568;
+      font-size: 20px;
+    }
+
+    .customer-info p {
+      margin: 8px 0;
+      color: #718096;
+      font-size: 16px;
+    }
+
+    .statement-table {
+      margin-bottom: 30px;
+    }
+
+    .statement-table th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 600;
+    }
+
+    .statement-table tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+
+    .statement-total {
+      background: #e6f2ff !important;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .statement-footer {
+      margin-top: 40px;
+      padding: 25px;
+      background: #f0f8ff;
+      border-radius: 15px;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+
+    .statement-footer p {
+      margin: 8px 0;
+      color: #718096;
+    }
+
+    .statement-footer .note {
+      font-style: italic;
+      color: #a0aec0;
+      margin-top: 15px;
+    }
+
+    .go-back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 25px;
+      background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(108,117,125,0.3);
+      margin-top: 20px;
+    }
+
+    .go-back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(108,117,125,0.4);
+    }
+
+    .age-filter-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+      display: none;
+    }
+
+    .age-filter-container.show {
+      display: grid;
+    }
+
+    .age-filter-box {
+      background: rgba(255,255,255,0.95);
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .age-filter-box:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 25px rgba(0,0,0,0.15);
+    }
+
+    .age-filter-box h3 {
+      margin: 0 0 15px 0;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .age-filter-box button {
+      width: 100%;
+      padding: 12px 20px;
+      font-size: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .age-filter-box button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(102,126,234,0.4);
+    }
+
+    .age-filter-box.days-0-30 {
+      border-top: 4px solid #38a169;
+    }
+
+    .age-filter-box.days-0-30 h3 {
+      color: #38a169;
+    }
+
+    .age-filter-box.days-31-60 {
+      border-top: 4px solid #d69e2e;
+    }
+
+    .age-filter-box.days-31-60 h3 {
+      color: #d69e2e;
+    }
+
+    .age-filter-box.days-61-90 {
+      border-top: 4px solid #dd6b20;
+    }
+
+    .age-filter-box.days-61-90 h3 {
+      color: #dd6b20;
+    }
+
+    .age-filter-box.days-91-180 {
+      border-top: 4px solid #e53e3e;
+    }
+
+    .age-filter-box.days-91-180 h3 {
+      color: #e53e3e;
+    }
+
+    .age-filter-box.days-181-360 {
+      border-top: 4px solid #9f1239;
+    }
+
+    .age-filter-box.days-181-360 h3 {
+      color: #9f1239;
+    }
+
+    .age-filter-box.days-360-plus {
+      border-top: 4px solid #7c2d12;
+    }
+
+    .age-filter-box.days-360-plus h3 {
+      color: #7c2d12;
+    }
+
+    .alert-box {
+      background: #fff5f5;
+      border-left: 4px solid #e53e3e;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+
+    .alert-box h3 {
+      color: #e53e3e;
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-box p {
+      color: #742a2a;
+      margin: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .search-container {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+
+      .search-box {
+        padding: 20px;
+      }
+
+      .summary-totals {
+        grid-template-columns: 1fr;
+      }
+
+      .download-container {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .download-button {
+        width: 100%;
+        max-width: 300px;
+      }
+
+      .age-table {
+        font-size: 10px;
+      }
+
+      .age-table table {
+        min-width: 700px;
+      }
+
+      .age-table th, .age-table td {
+        padding: 6px 8px;
+      }
+
+      .age-filter-container {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-content {
+        width: 95%;
+        margin: 10% auto;
+      }
+
+      .invoice-details {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-container">
+    <h2><i class="fas fa-lock"></i> Login to Outstanding Summary</h2>
+    <input type="text" id="username" placeholder="Enter Username" onkeypress="handleLoginKeyPress(event)" />
+    <input type="password" id="password" placeholder="Enter Password" onkeypress="handleLoginKeyPress(event)" />
+    <button onclick="login()"><i class="fas fa-sign-in-alt"></i> Login</button>
+    <div id="loginMessage"></div>
+  </div>
+
+  <!-- Main Application (Hidden until login) -->
+  <div id="mainApp" class="container">
+    <h1><i class="fas fa-building"></i> DOK Solutions Lanka (Pvt) Ltd</h1>
+    <h2>Outstanding Invoice Management System</h2>
+    <div id="asOfDate" class="as-of-date"></div>
+
+    <div class="search-container">
+      <div class="search-box">
+        <h3><i class="fas fa-search"></i> Search by Site Code</h3>
+        <input type="text" id="siteCodeInput" placeholder="Enter Site Code (e.g. CCC01)" onkeypress="handleKeyPress(event, 'site')" />
+        <button onclick="searchBySiteCode()"><i class="fas fa-search"></i> Search Site Code</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-file-invoice"></i> Search by Invoice Number</h3>
+        <input type="text" id="invoiceNoInput" placeholder="Enter Invoice Number" onkeypress="handleKeyPress(event, 'invoice')" />
+        <button onclick="searchByInvoiceNo()"><i class="fas fa-search"></i> Search Invoice No</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-users"></i> Find Site by Customer Name</h3>
+        <input type="text" id="customerNameInput" placeholder="Enter part of Customer Name" onkeypress="handleKeyPress(event, 'customer')" />
+        <button onclick="searchByCustomerName()"><i class="fas fa-search"></i> Find Site</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-chart-line"></i> Total Customer Outstanding Summary</h3>
+        <button onclick="showCustomerSummary()"><i class="fas fa-chart-bar"></i> Show All Customer Outstandings</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-filter"></i> Customer Outstanding (Without Excess)</h3>
+        <button onclick="showCustomerSummaryWithoutExcess()"><i class="fas fa-calculator"></i> Show Outstanding Without Excess</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-clock"></i> Age Analysis (Customer Wise)</h3>
+        <button onclick="showAgeAnalysis()"><i class="fas fa-hourglass-half"></i> Show Age Analysis</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-receipt"></i> SVAT Invoices</h3>
+        <button onclick="showSVATInvoices()"><i class="fas fa-file-invoice-dollar"></i> Show SVAT Invoices</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-calendar-alt"></i> Filter Invoices by Age</h3>
+        <button onclick="toggleAgeFilterContainer()"><i class="fas fa-filter"></i> Show Age Filter Options</button>
+      </div>
+
+      <div class="search-box">
+        <h3><i class="fas fa-exclamation-triangle"></i> Invoices Exceeding 360 Days</h3>
+        <input type="month" id="reportingMonth" placeholder="Select Month" />
+        <button onclick="showInvoicesExceeding360SelectedMonth()"><i class="fas fa-calendar-times"></i> Find Invoices</button>
+      </div>
+    </div>
+
+    <div id="ageFilterContainer" class="age-filter-container">
+      <div class="age-filter-box days-0-30">
+        <h3><i class="fas fa-hourglass-start"></i> 0-30 Days</h3>
+        <button onclick="showInvoicesByAge('0-30')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+
+      <div class="age-filter-box days-31-60">
+        <h3><i class="fas fa-hourglass-half"></i> 31-60 Days</h3>
+        <button onclick="showInvoicesByAge('31-60')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+
+      <div class="age-filter-box days-61-90">
+        <h3><i class="fas fa-hourglass-end"></i> 61-90 Days</h3>
+        <button onclick="showInvoicesByAge('61-90')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+
+      <div class="age-filter-box days-91-180">
+        <h3><i class="fas fa-calendar-week"></i> 91-180 Days</h3>
+        <button onclick="showInvoicesByAge('91-180')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+
+      <div class="age-filter-box days-181-360">
+        <h3><i class="fas fa-calendar-alt"></i> 181-360 Days</h3>
+        <button onclick="showInvoicesByAge('181-360')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+
+      <div class="age-filter-box days-360-plus">
+        <h3><i class="fas fa-calendar-times"></i> More than 360 Days</h3>
+        <button onclick="showInvoicesByAge('360-plus')"><i class="fas fa-filter"></i> Show Invoices</button>
+      </div>
+    </div>
+
+    <div id="results"></div>
+    
+    <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+  </div>
+
+  <!-- Invoice Breakdown Modal -->
+  <div id="invoiceModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2><i class="fas fa-file-invoice-dollar"></i> Invoice Breakdown</h2>
+        <button class="close" onclick="closeInvoiceModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="invoiceModalBody">
+        <!-- Invoice details will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Updated Google Sheet URL
+    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/151bjtr7oiCGkQHfO5X_lMY2KCoNOKzoYIyMzjEq5Pg0/gviz/tq?tqx=out:json';
+    let currentSiteCode = '';
+    let rawSummaryData = null;
+    let rawSummaryWithoutExcessData = null;
+    let rawAgeAnalysisData = null;
+    let rawSVATData = null;
+    let currentSortType = 'alphabetical';
+    let currentView = null;
+    let isLoggedIn = false;
+    let allCustomers = [];
+    let isWithoutExcessView = false;
+    let previousView = null;
+    let navigationHistory = [];
+    let currentAgeFilter = null;
+    let rawAgeFilterData = {};
+    let rawExceeding360Data = null;
+    let selectedReportingMonth = null;
+
+    // Function to toggle the age filter container visibility
+    function toggleAgeFilterContainer() {
+      const container = document.getElementById('ageFilterContainer');
+      container.classList.toggle('show');
+      
+      // Change button text based on visibility
+      const button = document.querySelector('.search-box:nth-child(8) button');
+      if (container.classList.contains('show')) {
+        button.innerHTML = '<i class="fas fa-times"></i> Hide Age Filter Options';
+      } else {
+        button.innerHTML = '<i class="fas fa-filter"></i> Show Age Filter Options';
+      }
+    }
+
+    async function fetchSheetData() {
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+        if (!json.table || !json.table.rows) return [];
+        return json.table.rows;
+      } catch (error) {
+        console.error('Error fetching sheet data:', error);
+        return [];
+      }
+    }
+
+    function handleLoginKeyPress(event) {
+      if (event.key === 'Enter') {
+        login();
+      }
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const messageDiv = document.getElementById('loginMessage');
+
+      if (!username || !password) {
+        messageDiv.innerHTML = '<div class="error-message"><i class="fas fa-exclamation-circle"></i> Please enter both username and password</div>';
+        return;
+      }
+
+      messageDiv.innerHTML = '<div class="success-message"><i class="fas fa-spinner fa-spin"></i> Validating credentials...</div>';
+
+      const rows = await fetchSheetData();
+      let loginSuccess = false;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const storedUsername = row.c[9]?.v?.toString().trim() || '';
+        const storedPassword = row.c[10]?.v?.toString().trim() || '';
+
+        if (storedUsername === username && storedPassword === password) {
+          loginSuccess = true;
+          break;
+        }
+      }
+
+      if (loginSuccess) {
+        messageDiv.innerHTML = '<div class="success-message"><i class="fas fa-check-circle"></i> Login successful! Redirecting...</div>';
+        isLoggedIn = true;
+        
+        setTimeout(async () => {
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('mainApp').style.display = 'block';
+          await fetchAsOfDate();
+          await loadAllCustomers();
+        }, 1000);
+      } else {
+        messageDiv.innerHTML = '<div class="error-message"><i class="fas fa-times-circle"></i> Invalid username or password</div>';
+        document.getElementById('password').value = '';
+      }
+    }
+
+    function logout() {
+      isLoggedIn = false;
+      document.getElementById('mainApp').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'block';
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+      document.getElementById('loginMessage').innerHTML = '';
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('asOfDate').innerHTML = '';
+      currentSortType = 'alphabetical';
+      currentView = null;
+      previousView = null;
+      rawSummaryData = null;
+      rawSummaryWithoutExcessData = null;
+      rawAgeAnalysisData = null;
+      rawSVATData = null;
+      allCustomers = [];
+      isWithoutExcessView = false;
+      navigationHistory = [];
+      currentAgeFilter = null;
+      rawAgeFilterData = {};
+      rawExceeding360Data = null;
+      selectedReportingMonth = null;
+      
+      // Hide age filter container on logout
+      document.getElementById('ageFilterContainer').classList.remove('show');
+      const button = document.querySelector('.search-box:nth-child(8) button');
+      button.innerHTML = '<i class="fas fa-filter"></i> Show Age Filter Options';
+    }
+
+    async function fetchAsOfDate() {
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+        
+        if (json.table && json.table.cols && json.table.cols.length > 0) {
+          const firstColLabel = json.table.cols[0].label || '';
+          
+          if (firstColLabel) {
+            document.getElementById('asOfDate').innerHTML = `<i class="fas fa-calendar-alt"></i> ${firstColLabel.toString()}`;
+          } else {
+            document.getElementById('asOfDate').innerHTML = '<i class="fas fa-calendar-alt"></i> As of Date not found';
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching As of Date:', error);
+        document.getElementById('asOfDate').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error loading date';
+      }
+    }
+
+    async function loadAllCustomers() {
+      const rows = await fetchSheetData();
+      const customerMap = new Map();
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        
+        if (siteCode && customerName && !customerMap.has(siteCode)) {
+          customerMap.set(siteCode, customerName);
+        }
+      });
+
+      allCustomers = Array.from(customerMap.entries()).map(([siteCode, customerName]) => ({
+        siteCode,
+        customerName,
+        displayName: `${customerName} (${siteCode})`
+      })).sort((a, b) => a.customerName.localeCompare(b.customerName));
+    }
+
+    function handleKeyPress(event, type) {
+      if (event.key === 'Enter') {
+        if (type === 'site') searchBySiteCode();
+        else if (type === 'invoice') searchByInvoiceNo();
+        else if (type === 'customer') searchByCustomerName();
+      }
+    }
+
+    function formatAmount(num) {
+      return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function parseDate(dateString) {
+      if (!dateString) return null;
+      
+      const parsed = Date.parse(dateString);
+      if (!isNaN(parsed)) return new Date(parsed);
+      
+      const ddmmyyyy = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (ddmmyyyy) {
+        return new Date(parseInt(ddmmyyyy[3]), parseInt(ddmmyyyy[2]) - 1, parseInt(ddmmyyyy[1]));
+      }
+      
+      const ddmmyyyy2 = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+      if (ddmmyyyy2) {
+        return new Date(parseInt(ddmmyyyy2[3]), parseInt(ddmmyyyy2[2]) - 1, parseInt(ddmmyyyy2[1]));
+      }
+      
+      const mmddyyyy = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (mmddyyyy) {
+        return new Date(parseInt(mmddyyyy[3]), parseInt(mmddyyyy[1]) - 1, parseInt(mmddyyyy[2]));
+      }
+      
+      const yyyymmdd = dateString.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (yyyymmdd) {
+        return new Date(parseInt(yyyymmdd[1]), parseInt(yyyymmdd[2]) - 1, parseInt(yyyymmdd[3]));
+      }
+      
+      return null;
+    }
+
+    function calculateDueDays(invoiceDate) {
+      const invDate = parseDate(invoiceDate);
+      if (!invDate) return 0;
+      
+      const today = new Date();
+      const diffTime = today - invDate;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return Math.max(0, diffDays);
+    }
+
+    function getDueClass(days) {
+      if (days <= 30) return 'days-0-30';
+      if (days <= 60) return 'days-31-60';
+      if (days <= 90) return 'days-61-90';
+      return 'days-91-plus';
+    }
+
+    function calculateAge(invoiceDate) {
+      const invDate = parseDate(invoiceDate);
+      if (!invDate) return 0;
+      
+      const today = new Date();
+      const diffTime = Math.abs(today - invDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    }
+
+    function getAgeBracket(days) {
+      if (days >= 0 && days <= 30) return '0-30';
+      if (days > 30 && days <= 60) return '31-60';
+      if (days > 60 && days <= 90) return '61-90';
+      if (days > 90 && days <= 180) return '91-180';
+      if (days > 180 && days <= 360) return '181-360';
+      if (days > 360) return '>360';
+      return '0-30';
+    }
+
+    function getAgeClass(bracket) {
+      if (bracket === '0-30') return 'days-0-30';
+      if (bracket === '31-60') return 'days-31-60';
+      if (bracket === '61-90') return 'days-61-90';
+      if (bracket === '91-180') return 'days-91-180';
+      if (bracket === '181-360') return 'days-181-360';
+      if (bracket === '>360') return 'days-360-plus';
+      return '';
+    }
+
+    function sortData(data, sortType) {
+      if (sortType === 'alphabetical') {
+        return data.sort((a, b) => a.customerName.localeCompare(b.customerName));
+      } else if (sortType === 'amount') {
+        return data.sort((a, b) => {
+          const totalA = a.amountRaw !== undefined ? a.amountRaw : 
+                        (a.grandTotal !== undefined ? a.grandTotal : 
+                        (a.total !== undefined ? a.total : 0));
+          const totalB = b.amountRaw !== undefined ? b.amountRaw : 
+                        (b.grandTotal !== undefined ? b.grandTotal : 
+                        (b.total !== undefined ? b.total : 0));
+          return totalB - totalA;
+        });
+      }
+      return data;
+    }
+
+    function renderSortButtons(viewType) {
+      return `
+        <div class="sort-container">
+          <span class="sort-label"><i class="fas fa-sort"></i> Sort by:</span>
+          <button class="sort-button ${currentSortType === 'alphabetical' ? 'active' : ''}" 
+                  onclick="changeSortType('alphabetical', '${viewType}')">
+            <i class="fas fa-sort-alpha-down"></i> Customer Name (A-Z)
+          </button>
+          <button class="sort-button ${currentSortType === 'amount' ? 'active' : ''}" 
+                  onclick="changeSortType('amount', '${viewType}')">
+            <i class="fas fa-sort-amount-down"></i> Invoice Value (High to Low)
+          </button>
+        </div>
+      `;
+    }
+
+    function changeSortType(sortType, viewType) {
+      currentSortType = sortType;
+      
+      if (viewType === 'summary' && rawSummaryData) {
+        const sortedData = sortData([...rawSummaryData], sortType);
+        renderCustomerSummary(sortedData);
+      } else if (viewType === 'summaryWithoutExcess' && rawSummaryWithoutExcessData) {
+        const sortedData = sortData([...rawSummaryWithoutExcessData], sortType);
+        renderCustomerSummaryWithoutExcess(sortedData);
+      } else if (viewType === 'ageAnalysis' && rawAgeAnalysisData) {
+        const sortedData = sortData([...rawAgeAnalysisData], sortType);
+        renderAgeAnalysis(sortedData);
+      } else if (viewType === 'svat' && rawSVATData) {
+        const sortedData = sortData([...rawSVATData], sortType);
+        renderSVATInvoices(sortedData);
+      } else if (viewType === 'ageFilter' && currentAgeFilter && rawAgeFilterData[currentAgeFilter]) {
+        const sortedData = sortData([...rawAgeFilterData[currentAgeFilter]], sortType);
+        renderInvoicesByAge(sortedData, currentAgeFilter);
+      } else if (viewType === 'exceeding360' && rawExceeding360Data) {
+        const cacheKey = selectedReportingMonth ? 
+          `${selectedReportingMonth.getFullYear()}-${String(selectedReportingMonth.getMonth() + 1).padStart(2, '0')}` : 
+          new Date().toISOString().slice(0, 7);
+        
+        if (rawExceeding360Data[cacheKey]) {
+          const sortedData = sortData([...rawExceeding360Data[cacheKey]], sortType);
+          renderInvoicesExceeding360SelectedMonth(sortedData);
+        }
+      }
+    }
+
+    async function showSVATInvoices() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading SVAT invoices...</div>`;
+
+      const rows = await fetchSheetData();
+      const svatInvoices = [];
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const invNo = row.c[3]?.v || '';
+        const date = row.c[4]?.f || row.c[4]?.v || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+        const svat = row.c[16]?.v || 0; // SVAT is in column Q (index 16)
+        
+        // Skip payments
+        if (description.toLowerCase() === 'payment') return;
+        
+        // Only include invoices with SVAT values
+        if (svat && svat !== 0 && svat !== 'N/A') {
+          svatInvoices.push({
+            siteCode,
+            customerName,
+            invNo,
+            date,
+            description,
+            amountRaw,
+            svat,
+            age: calculateAge(date),
+            ageBracket: getAgeBracket(calculateAge(date))
+          });
+        }
+      });
+
+      rawSVATData = svatInvoices;
+      const sortedData = sortData([...svatInvoices], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'svat',
+        sortType: currentSortType,
+        data: sortedData
+      });
+      
+      previousView = currentView;
+      currentView = 'svat';
+
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No SVAT invoices found.</div>`;
+        return;
+      }
+
+      renderSVATInvoices(sortedData);
+    }
+
+    function renderSVATInvoices(data) {
+      const resultsDiv = document.getElementById('results');
+      const svatInvoices = data;
+      
+      let totalAmount = 0;
+      let totalSVAT = 0;
+      
+      let html = renderSortButtons('svat');
+      
+      html += `<div class="section-title" style="border-bottom-color: #805ad5;">
+                <i class="fas fa-receipt" style="color: #805ad5;"></i> 
+                SVAT Invoices
+              </div>`;
+      
+      html += `<table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Site Code</th>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                    <th>SVAT (Rs.)</th>
+                    <th>Age (Days)</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+      
+      svatInvoices.forEach(invoice => {
+        totalAmount += invoice.amountRaw;
+        totalSVAT += invoice.svat;
+        
+        html += `<tr>
+          <td>${invoice.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${invoice.siteCode}')">${invoice.siteCode}</a></td>
+          <td><a class="invoice-link" onclick="showInvoiceBreakdown('${invoice.invNo}', '${invoice.siteCode}')">${invoice.invNo}</a></td>
+          <td>${invoice.date}</td>
+          <td>${invoice.description}</td>
+          <td class="amount">${formatAmount(invoice.amountRaw)}</td>
+          <td class="amount">${formatAmount(invoice.svat)}</td>
+          <td class="overdue ${getAgeClass(invoice.ageBracket)}">${invoice.age}</td>
+        </tr>`;
+      });
+      
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="5" style="text-align: right;">TOTAL</td>
+        <td class="amount">${formatAmount(totalAmount)}</td>
+        <td class="amount">${formatAmount(totalSVAT)}</td>
+        <td></td>
+      </tr>`;
+      
+      html += `</tbody></table>`;
+      
+      html += `<div class="summary-totals">
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice"></i> Total Invoice Amount</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalAmount)}</div>
+        </div>
+        <div class="summary-card" style="border-top-color: #805ad5;">
+          <h3 style="color: #805ad5;"><i class="fas fa-receipt"></i> Total SVAT</h3>
+          <div class="amount-big" style="color: #805ad5;">Rs. ${formatAmount(totalSVAT)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-list"></i> Number of Invoices</h3>
+          <div class="amount-big">${svatInvoices.length}</div>
+        </div>
+      </div>`;
+      
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadSVATPDF()">
+          <i class="fas fa-file-pdf"></i> Download as PDF
+        </button>
+        <button class="download-button excel" onclick="downloadSVATExcel()">
+          <i class="fas fa-file-excel"></i> Download as Excel
+        </button>
+      </div>`;
+      
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()">
+          <i class="fas fa-arrow-left"></i> Go Back
+        </button>
+      </div>`;
+      
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadSVATPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('SVAT Invoices', 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+      
+      const table = document.querySelector('#results table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [128, 90, 213], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          5: { halign: 'right' },
+          6: { halign: 'right' },
+          7: { halign: 'center' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+      
+      doc.save('SVAT Invoices.pdf');
+    }
+
+    function downloadSVATExcel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['SVAT Invoices']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'Invoice No', 
+        'Date', 
+        'Description', 
+        'Amount (Rs.)', 
+        'SVAT (Rs.)', 
+        'Age (Days)'
+      ]);
+      
+      const table = document.querySelector('#results table tbody');
+      if (table) {
+        const rows = Array.from(table.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i === 5 || i === 6) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = table.rows[table.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [
+            'TOTAL',
+            '',
+            '',
+            '',
+            '',
+            parseFloat(totalsRow.cells[5].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            parseFloat(totalsRow.cells[6].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            ''
+          ];
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 20 }, 
+        { wch: 15 }, 
+        { wch: 25 }, 
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 15 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 7 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 7 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "805AD5" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "E9D8FD" } },
+                bottom: { style: "thin", color: { rgb: "E9D8FD" } },
+                left: { style: "thin", color: { rgb: "E9D8FD" } },
+                right: { style: "thin", color: { rgb: "E9D8FD" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C === 5 || C === 6) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "F3E8FF" } },
+                bottom: { style: "thin", color: { rgb: "F3E8FF" } },
+                left: { style: "thin", color: { rgb: "F3E8FF" } },
+                right: { style: "thin", color: { rgb: "F3E8FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C === 5 || C === 6) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "F3E8FF" } },
+              alignment: { 
+                horizontal: (C === 5 || C === 6) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "805AD5" } },
+                bottom: { style: "thin", color: { rgb: "E9D8FD" } },
+                left: { style: "thin", color: { rgb: "E9D8FD" } },
+                right: { style: "thin", color: { rgb: "E9D8FD" } }
+              }
+            };
+            
+            if (C === 5 || C === 6) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "SVAT Invoices");
+      
+      const fileName = `SVAT Invoices_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function showInvoicesExceeding360SelectedMonth() {
+      const monthInput = document.getElementById('reportingMonth').value;
+      const resultsDiv = document.getElementById('results');
+      
+      if (!monthInput) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> Please select a reporting month.</div>`;
+        return;
+      }
+      
+      // Parse the selected month (YYYY-MM format)
+      const [year, month] = monthInput.split('-').map(Number);
+      const reportingDate = new Date(year, month, 0); // Last day of selected month
+      
+      selectedReportingMonth = reportingDate;
+      
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading invoices that will exceed 360 days by ${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}...</div>`;
+      
+      // Check if we already have this data cached for this month
+      const cacheKey = monthInput;
+      if (rawExceeding360Data && rawExceeding360Data[cacheKey]) {
+        const sortedData = sortData([...rawExceeding360Data[cacheKey]], currentSortType);
+        
+        // Save current state to navigation history
+        navigationHistory.push({
+          view: 'exceeding360',
+          sortType: currentSortType,
+          data: sortedData,
+          reportingMonth: monthInput
+        });
+        
+        previousView = currentView;
+        currentView = 'exceeding360';
+        
+        renderInvoicesExceeding360SelectedMonth(sortedData);
+        return;
+      }
+      
+      const rows = await fetchSheetData();
+      const invoices = [];
+      
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const invNo = row.c[3]?.v || '';
+        const date = row.c[4]?.f || row.c[4]?.v || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+        
+        if (!siteCode || !customerName) return;
+        
+        // Skip payments
+        if (description.toLowerCase() === 'payment') return;
+        
+        const invoiceDate = parseDate(date);
+        if (!invoiceDate) return;
+        
+        // Calculate age at the reporting date
+        const ageAtReportingDate = Math.ceil((reportingDate - invoiceDate) / (1000 * 60 * 60 * 24));
+        
+        // Calculate current age
+        const currentAge = calculateAge(date);
+        
+        // Include invoices that will exceed 360 days at the reporting date
+        // but are not already over 360 days
+        if (ageAtReportingDate > 360 && currentAge <= 360) {
+          invoices.push({
+            siteCode,
+            customerName,
+            invNo,
+            date,
+            description,
+            amountRaw,
+            currentAge,
+            ageAtReportingDate,
+            reportingDate
+          });
+        }
+      });
+      
+      // Cache the data for this month
+      if (!rawExceeding360Data) {
+        rawExceeding360Data = {};
+      }
+      rawExceeding360Data[cacheKey] = invoices;
+      
+      const sortedData = sortData([...invoices], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'exceeding360',
+        sortType: currentSortType,
+        data: sortedData,
+        reportingMonth: monthInput
+      });
+      
+      previousView = currentView;
+      currentView = 'exceeding360';
+      
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-check-circle"></i> No invoices will exceed 360 days by ${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.</div>`;
+        return;
+      }
+      
+      renderInvoicesExceeding360SelectedMonth(sortedData);
+    }
+
+    function renderInvoicesExceeding360SelectedMonth(data) {
+      const resultsDiv = document.getElementById('results');
+      const invoices = data;
+      
+      let totalAmount = 0;
+      
+      let html = renderSortButtons('exceeding360');
+      
+      const reportingDate = selectedReportingMonth || new Date();
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      
+      html += `<div class="alert-box">
+        <h3><i class="fas fa-exclamation-triangle"></i> Alert: Invoices Exceeding 360 Days</h3>
+        <p>The following invoices will exceed 360 days as of ${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. These are invoices that are currently not over 360 days but will cross this threshold by the selected reporting date.</p>
+      </div>`;
+      
+      html += `<div class="section-title">
+                <i class="fas fa-calendar-times"></i> 
+                Invoices Exceeding 360 Days as of ${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>`;
+      
+      html += `<table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Site Code</th>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                    <th>Current Age (Days)</th>
+                    <th>Age at Reporting Date</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+      
+      invoices.forEach(invoice => {
+        totalAmount += invoice.amountRaw;
+        
+        html += `<tr>
+          <td>${invoice.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${invoice.siteCode}')">${invoice.siteCode}</a></td>
+          <td><a class="invoice-link" onclick="showInvoiceBreakdown('${invoice.invNo}', '${invoice.siteCode}')">${invoice.invNo}</a></td>
+          <td>${invoice.date}</td>
+          <td>${invoice.description}</td>
+          <td class="amount">${formatAmount(invoice.amountRaw)}</td>
+          <td class="overdue ${getAgeClass(getAgeBracket(invoice.currentAge))}">${invoice.currentAge}</td>
+          <td class="overdue days-360-plus">${invoice.ageAtReportingDate}</td>
+        </tr>`;
+      });
+      
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="5" style="text-align: right;">TOTAL</td>
+        <td class="amount">${formatAmount(totalAmount)}</td>
+        <td colspan="2"></td>
+      </tr>`;
+      
+      html += `</tbody></table>`;
+      
+      html += `<div class="summary-totals">
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice"></i> Total Amount</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalAmount)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-list"></i> Number of Invoices</h3>
+          <div class="amount-big">${invoices.length}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-calendar-alt"></i> Reporting Date</h3>
+          <div class="amount-big">${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        </div>
+      </div>`;
+      
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadExceeding360PDF()">
+          <i class="fas fa-file-pdf"></i> Download as PDF
+        </button>
+        <button class="download-button excel" onclick="downloadExceeding360Excel()">
+          <i class="fas fa-file-excel"></i> Download as Excel
+        </button>
+      </div>`;
+      
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()">
+          <i class="fas fa-arrow-left"></i> Go Back
+        </button>
+      </div>`;
+      
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadExceeding360PDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      
+      const reportingDate = selectedReportingMonth || new Date();
+      
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Invoices Exceeding 360 Days', 40, 60);
+      doc.text(`As of: ${reportingDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 40, 80);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 100);
+      
+      const table = document.querySelector('#results table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 120,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          5: { halign: 'right' },
+          6: { halign: 'center' },
+          7: { halign: 'center' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+      
+      doc.save('Invoices Exceeding 360 Days.pdf');
+    }
+
+    function downloadExceeding360Excel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportingDate = selectedReportingMonth || new Date();
+      const reportDate = reportingDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['Invoices Exceeding 360 Days']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'Invoice No', 
+        'Date', 
+        'Description', 
+        'Amount (Rs.)', 
+        'Current Age (Days)',
+        'Age at Reporting Date'
+      ]);
+      
+      const table = document.querySelector('#results table tbody');
+      if (table) {
+        const rows = Array.from(table.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i === 5) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = table.rows[table.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [
+            'TOTAL',
+            '',
+            '',
+            '',
+            '',
+            parseFloat(totalsRow.cells[5].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            '',
+            ''
+          ];
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 20 }, 
+        { wch: 15 }, 
+        { wch: 25 }, 
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 25 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 7 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 7 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C === 5) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C === 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C === 5) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C === 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Invoices Exceeding 360 Days");
+      
+      const fileName = `Invoices Exceeding 360 Days_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    // All existing functions remain the same
+    async function showInvoicesByAge(ageRange) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading invoices for ${ageRange} days...</div>`;
+      
+      currentAgeFilter = ageRange;
+      
+      // Check if we already have this data cached
+      if (rawAgeFilterData[ageRange]) {
+        const sortedData = sortData([...rawAgeFilterData[ageRange]], currentSortType);
+        
+        // Save current state to navigation history
+        navigationHistory.push({
+          view: 'ageFilter',
+          sortType: currentSortType,
+          data: sortedData,
+          ageRange: ageRange
+        });
+        
+        previousView = currentView;
+        currentView = 'ageFilter';
+        
+        renderInvoicesByAge(sortedData, ageRange);
+        return;
+      }
+      
+      const rows = await fetchSheetData();
+      const invoices = [];
+      
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const invNo = row.c[3]?.v || '';
+        const date = row.c[4]?.f || row.c[4]?.v || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+        
+        if (!siteCode || !customerName) return;
+        
+        const age = calculateAge(date);
+        const bracket = getAgeBracket(age);
+        
+        // Check if this invoice falls into the requested age range
+        let includeInvoice = false;
+        
+        if (ageRange === '0-30' && bracket === '0-30') {
+          includeInvoice = true;
+        } else if (ageRange === '31-60' && bracket === '31-60') {
+          includeInvoice = true;
+        } else if (ageRange === '61-90' && bracket === '61-90') {
+          includeInvoice = true;
+        } else if (ageRange === '91-180' && bracket === '91-180') {
+          includeInvoice = true;
+        } else if (ageRange === '181-360' && bracket === '181-360') {
+          includeInvoice = true;
+        } else if (ageRange === '360-plus' && bracket === '>360') {
+          includeInvoice = true;
+        }
+        
+        // For excess payments, use the same age calculation
+        if (description.toLowerCase() === 'payment') {
+          const paymentAge = calculateAge(date);
+          const paymentBracket = getAgeBracket(paymentAge);
+          
+          // Include excess payments in the appropriate age bucket based on their date
+          if ((ageRange === '0-30' && paymentBracket === '0-30') ||
+              (ageRange === '31-60' && paymentBracket === '31-60') ||
+              (ageRange === '61-90' && paymentBracket === '61-90') ||
+              (ageRange === '91-180' && paymentBracket === '91-180') ||
+              (ageRange === '181-360' && paymentBracket === '181-360') ||
+              (ageRange === '360-plus' && paymentBracket === '>360')) {
+            includeInvoice = true;
+          }
+        }
+        
+        if (includeInvoice) {
+          invoices.push({
+            siteCode,
+            customerName,
+            invNo,
+            date,
+            description,
+            amountRaw,
+            age,
+            ageBracket: bracket
+          });
+        }
+      });
+      
+      // Cache the data for this age range
+      rawAgeFilterData[ageRange] = invoices;
+      
+      const sortedData = sortData([...invoices], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'ageFilter',
+        sortType: currentSortType,
+        data: sortedData,
+        ageRange: ageRange
+      });
+      
+      previousView = currentView;
+      currentView = 'ageFilter';
+      
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No invoices found for ${ageRange} days.</div>`;
+        return;
+      }
+      
+      renderInvoicesByAge(sortedData, ageRange);
+    }
+
+    function renderInvoicesByAge(data, ageRange) {
+      const resultsDiv = document.getElementById('results');
+      const invoices = data;
+      
+      let totalAmount = 0;
+      
+      let html = renderSortButtons('ageFilter');
+      
+      // Add title based on age range
+      let titleText = '';
+      let titleIcon = '';
+      let titleColor = '';
+      
+      switch(ageRange) {
+        case '0-30':
+          titleText = 'Invoices & Excess Payments (0-30 Days)';
+          titleIcon = 'fa-hourglass-start';
+          titleColor = '#38a169';
+          break;
+        case '31-60':
+          titleText = 'Invoices & Excess Payments (31-60 Days)';
+          titleIcon = 'fa-hourglass-half';
+          titleColor = '#d69e2e';
+          break;
+        case '61-90':
+          titleText = 'Invoices & Excess Payments (61-90 Days)';
+          titleIcon = 'fa-hourglass-end';
+          titleColor = '#dd6b20';
+          break;
+        case '91-180':
+          titleText = 'Invoices & Excess Payments (91-180 Days)';
+          titleIcon = 'fa-calendar-week';
+          titleColor = '#e53e3e';
+          break;
+        case '181-360':
+          titleText = 'Invoices & Excess Payments (181-360 Days)';
+          titleIcon = 'fa-calendar-alt';
+          titleColor = '#9f1239';
+          break;
+        case '360-plus':
+          titleText = 'Invoices & Excess Payments (More than 360 Days)';
+          titleIcon = 'fa-calendar-times';
+          titleColor = '#7c2d12';
+          break;
+      }
+      
+      html += `<div class="section-title" style="border-bottom-color: ${titleColor};">
+                <i class="fas ${titleIcon}" style="color: ${titleColor};"></i> 
+                ${titleText}
+              </div>`;
+      
+      html += `<table>
+                <thead>
+                  <tr>
+                    <th>Customer Name</th>
+                    <th>Site Code</th>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                    <th>Age (Days)</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+      
+      invoices.forEach(invoice => {
+        const isPayment = invoice.description.toLowerCase().includes('payment');
+        const displayAmount = isPayment ? `(${formatAmount(Math.abs(invoice.amountRaw))})` : formatAmount(invoice.amountRaw);
+        const amountClass = isPayment ? 'amount payment' : 'amount';
+        
+        totalAmount += invoice.amountRaw;
+        
+        html += `<tr>
+          <td>${invoice.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${invoice.siteCode}')">${invoice.siteCode}</a></td>
+          <td><a class="invoice-link" onclick="showInvoiceBreakdown('${invoice.invNo}', '${invoice.siteCode}')">${invoice.invNo}</a></td>
+          <td>${invoice.date}</td>
+          <td>${invoice.description}</td>
+          <td class="${amountClass}">${displayAmount}</td>
+          <td class="overdue ${getAgeClass(invoice.ageBracket)}">${invoice.age}</td>
+        </tr>`;
+      });
+      
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="5" style="text-align: right;">TOTAL</td>
+        <td class="amount">${formatAmount(totalAmount)}</td>
+        <td></td>
+      </tr>`;
+      
+      html += `</tbody></table>`;
+      
+      html += `<div class="summary-totals">
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice"></i> Total Amount</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalAmount)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-list"></i> Number of Records</h3>
+          <div class="amount-big">${invoices.length}</div>
+        </div>
+      </div>`;
+      
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadAgeFilterPDF('${ageRange}')">
+          <i class="fas fa-file-pdf"></i> Download as PDF
+        </button>
+        <button class="download-button excel" onclick="downloadAgeFilterExcel('${ageRange}')">
+          <i class="fas fa-file-excel"></i> Download as Excel
+        </button>
+      </div>`;
+      
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()">
+          <i class="fas fa-arrow-left"></i> Go Back
+        </button>
+      </div>`;
+      
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadAgeFilterPDF(ageRange) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      
+      let titleText = '';
+      switch(ageRange) {
+        case '0-30':
+          titleText = 'Invoices & Excess Payments (0-30 Days)';
+          break;
+        case '31-60':
+          titleText = 'Invoices & Excess Payments (31-60 Days)';
+          break;
+        case '61-90':
+          titleText = 'Invoices & Excess Payments (61-90 Days)';
+          break;
+        case '91-180':
+          titleText = 'Invoices & Excess Payments (91-180 Days)';
+          break;
+        case '181-360':
+          titleText = 'Invoices & Excess Payments (181-360 Days)';
+          break;
+        case '360-plus':
+          titleText = 'Invoices & Excess Payments (More than 360 Days)';
+          break;
+      }
+      
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text(titleText, 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+      
+      const table = document.querySelector('#results table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          5: { halign: 'right' },
+          6: { halign: 'center' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+      
+      doc.save(`${titleText}.pdf`);
+    }
+
+    function downloadAgeFilterExcel(ageRange) {
+      const wb = XLSX.utils.book_new();
+      
+      let titleText = '';
+      switch(ageRange) {
+        case '0-30':
+          titleText = 'Invoices & Excess Payments (0-30 Days)';
+          break;
+        case '31-60':
+          titleText = 'Invoices & Excess Payments (31-60 Days)';
+          break;
+        case '61-90':
+          titleText = 'Invoices & Excess Payments (61-90 Days)';
+          break;
+        case '91-180':
+          titleText = 'Invoices & Excess Payments (91-180 Days)';
+          break;
+        case '181-360':
+          titleText = 'Invoices & Excess Payments (181-360 Days)';
+          break;
+        case '360-plus':
+          titleText = 'Invoices & Excess Payments (More than 360 Days)';
+          break;
+      }
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push([titleText]);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'Invoice No', 
+        'Date', 
+        'Description', 
+        'Amount (Rs.)', 
+        'Age (Days)'
+      ]);
+      
+      const table = document.querySelector('#results table tbody');
+      if (table) {
+        const rows = Array.from(table.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i === 5) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '').replace(/[()]/g, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = table.rows[table.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [
+            'TOTAL',
+            '',
+            '',
+            '',
+            '',
+            parseFloat(totalsRow.cells[5].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            ''
+          ];
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 20 }, 
+        { wch: 15 }, 
+        { wch: 25 }, 
+        { wch: 20 },
+        { wch: 15 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 6 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 6 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C === 5) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C === 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C === 5) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C === 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, titleText);
+      
+      const fileName = `${titleText}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function showAgeAnalysis() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading age analysis data...</div>`;
+
+      const rows = await fetchSheetData();
+      const customerAgeData = {};
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+        const date = row.c[4]?.f || row.c[4]?.v || '';
+
+        if (!siteCode || !customerName) return;
+
+        const customerKey = `${customerName} (${siteCode})`;
+
+        if (!customerAgeData[customerKey]) {
+          customerAgeData[customerKey] = {
+            customerName,
+            siteCode,
+            '0-30': 0,
+            '31-60': 0,
+            '61-90': 0,
+            '91-180': 0,
+            '181-360': 0,
+            '>360': 0,
+            total: 0
+          };
+        }
+
+        const age = calculateAge(date);
+        const bracket = getAgeBracket(age);
+        
+        let amount = amountRaw;
+        if (description.toLowerCase() === 'payment') {
+          amount = -Math.abs(amountRaw);
+        }
+        
+        customerAgeData[customerKey][bracket] += amount;
+        customerAgeData[customerKey].total += amount;
+      });
+
+      const ageAnalysisArray = Object.entries(customerAgeData).map(([key, data]) => ({
+        key,
+        ...data
+      })).filter(item => item.total !== 0);
+
+      rawAgeAnalysisData = ageAnalysisArray;
+      const sortedData = sortData([...ageAnalysisArray], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'ageAnalysis',
+        sortType: currentSortType,
+        data: sortedData
+      });
+      
+      previousView = currentView;
+      currentView = 'ageAnalysis';
+      isWithoutExcessView = false;
+
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No outstanding invoices found for age analysis.</div>`;
+        return;
+      }
+
+      renderAgeAnalysis(sortedData);
+    }
+
+    function renderAgeAnalysis(data) {
+      const resultsDiv = document.getElementById('results');
+      const ageAnalysisArray = data;
+
+      let total0_30 = 0;
+      let total31_60 = 0;
+      let total61_90 = 0;
+      let total91_180 = 0;
+      let total181_360 = 0;
+      let totalOver360 = 0;
+      let grandTotal = 0;
+
+      let html = renderSortButtons('ageAnalysis');
+      html += `<div class="section-title"><i class="fas fa-clock"></i> Age Analysis (Customer Wise)</div>
+               <div class="age-table">
+               <table>
+                 <thead>
+                   <tr>
+                     <th>Customer Name</th>
+                     <th>Site Code</th>
+                     <th class="age-header">0-30 Days</th>
+                     <th class="age-header">31-60 Days</th>
+                     <th class="age-header">61-90 Days</th>
+                     <th class="age-header">91-180 Days</th>
+                     <th class="age-header">181-360 Days</th>
+                     <th class="age-header">>360 Days</th>
+                     <th>Total Outstanding</th>
+                   </tr>
+                 </thead>
+                 <tbody>`;
+
+      ageAnalysisArray.forEach(item => {
+        total0_30 += item['0-30'];
+        total31_60 += item['31-60'];
+        total61_90 += item['61-90'];
+        total91_180 += item['91-180'];
+        total181_360 += item['181-360'];
+        totalOver360 += item['>360'];
+        grandTotal += item.total;
+
+        html += `<tr>
+          <td>${item.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${item.siteCode}')">${item.siteCode}</a></td>
+          <td class="amount">${formatAmount(item['0-30'])}</td>
+          <td class="amount">${formatAmount(item['31-60'])}</td>
+          <td class="amount">${formatAmount(item['61-90'])}</td>
+          <td class="amount">${formatAmount(item['91-180'])}</td>
+          <td class="amount">${formatAmount(item['181-360'])}</td>
+          <td class="amount">${formatAmount(item['>360'])}</td>
+          <td class="amount" style="font-weight: 700;">${formatAmount(item.total)}</td>
+        </tr>`;
+      });
+
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="2" style="text-align: right;">GRAND TOTAL</td>
+        <td class="amount">${formatAmount(total0_30)}</td>
+        <td class="amount">${formatAmount(total31_60)}</td>
+        <td class="amount">${formatAmount(total61_90)}</td>
+        <td class="amount">${formatAmount(total91_180)}</td>
+        <td class="amount">${formatAmount(total181_360)}</td>
+        <td class="amount">${formatAmount(totalOver360)}</td>
+        <td class="amount">${formatAmount(grandTotal)}</td>
+      </tr>`;
+
+      html += `</tbody></table></div>`;
+
+      // Calculate percentages for each age bucket
+      const percent0_30 = grandTotal !== 0 ? ((total0_30 / grandTotal) * 100).toFixed(1) : 0;
+      const percent31_60 = grandTotal !== 0 ? ((total31_60 / grandTotal) * 100).toFixed(1) : 0;
+      const percent61_90 = grandTotal !== 0 ? ((total61_90 / grandTotal) * 100).toFixed(1) : 0;
+      const percent91_180 = grandTotal !== 0 ? ((total91_180 / grandTotal) * 100).toFixed(1) : 0;
+      const percent181_360 = grandTotal !== 0 ? ((total181_360 / grandTotal) * 100).toFixed(1) : 0;
+      const percentOver360 = grandTotal !== 0 ? ((totalOver360 / grandTotal) * 100).toFixed(1) : 0;
+
+      html += `<div class="summary-totals">
+        <div class="age-summary-card days-0-30">
+          <h3><i class="fas fa-hourglass-start"></i> 0-30 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(total0_30)}</div>
+          <div class="percentage">${percent0_30}% of Total</div>
+        </div>
+        <div class="age-summary-card days-31-60">
+          <h3><i class="fas fa-hourglass-half"></i> 31-60 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(total31_60)}</div>
+          <div class="percentage">${percent31_60}% of Total</div>
+        </div>
+        <div class="age-summary-card days-61-90">
+          <h3><i class="fas fa-hourglass-end"></i> 61-90 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(total61_90)}</div>
+          <div class="percentage">${percent61_90}% of Total</div>
+        </div>
+        <div class="age-summary-card days-91-180">
+          <h3><i class="fas fa-calendar-week"></i> 91-180 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(total91_180)}</div>
+          <div class="percentage">${percent91_180}% of Total</div>
+        </div>
+        <div class="age-summary-card days-181-360">
+          <h3><i class="fas fa-calendar-alt"></i> 181-360 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(total181_360)}</div>
+          <div class="percentage">${percent181_360}% of Total</div>
+        </div>
+        <div class="age-summary-card days-360-plus">
+          <h3><i class="fas fa-calendar-times"></i> >360 Days</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalOver360)}</div>
+          <div class="percentage">${percentOver360}% of Total</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-chart-line"></i> Total Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(grandTotal)}</div>
+        </div>
+      </div>`;
+
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadAgeAnalysisPDF()"><i class="fas fa-file-pdf"></i> Download as PDF</button>
+        <button class="download-button excel" onclick="downloadAgeAnalysisExcel()"><i class="fas fa-file-excel"></i> Download as Excel</button>
+      </div>`;
+
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i> Go Back</button>
+      </div>`;
+
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadAgeAnalysisPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Age Analysis (Customer Wise)', 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+
+      const table = document.querySelector('#results .age-table table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right' },
+          7: { halign: 'right' },
+          8: { halign: 'right' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save('Age Analysis.pdf');
+    }
+
+    function downloadAgeAnalysisExcel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['Age Analysis (Customer Wise)']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        '0-30 Days', 
+        '31-60 Days', 
+        '61-90 Days', 
+        '91-180 Days', 
+        '181-360 Days', 
+        '>360 Days', 
+        'Total Outstanding'
+      ]);
+      
+      const ageAnalysisArray = currentView === 'ageAnalysis' ? 
+        (document.querySelector('#results .age-table tbody') ? 
+          Array.from(document.querySelector('#results .age-table tbody').rows).slice(0, -1) : []) : [];
+      
+      ageAnalysisArray.forEach(row => {
+        const rowData = [];
+        for (let i = 0; i < row.cells.length; i++) {
+          let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+          
+          if (i >= 2 && i <= 8) {
+            cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+            cellValue = parseFloat(cellValue) || 0;
+          }
+          
+          rowData.push(cellValue);
+        }
+        wsData.push(rowData);
+      });
+      
+      const totalsRow = document.querySelector('#results .age-table tbody tr:last-child');
+      if (totalsRow) {
+        const totalsData = [];
+        for (let i = 0; i < totalsRow.cells.length; i++) {
+          let cellValue = totalsRow.cells[i].innerText || totalsRow.cells[i].textContent || '';
+          
+          if (i >= 2 && i <= 8) {
+            cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+            cellValue = parseFloat(cellValue) || 0;
+          }
+          
+          totalsData.push(cellValue);
+        }
+        wsData.push(totalsData);
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 18 }, 
+        { wch: 18 }, 
+        { wch: 18 }, 
+        { wch: 18 }, 
+        { wch: 18 }, 
+        { wch: 18 }, 
+        { wch: 22 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 8 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 8 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 8) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C >= 2 && C <= 8) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 8) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C >= 2 && C <= 8) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Age Analysis");
+      
+      const fileName = `Age Analysis_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function showCustomerSummary() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading customer summary data...</div>`;
+
+      const rows = await fetchSheetData();
+      const customerData = {};
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+
+        if (!siteCode || !customerName) return;
+
+        if (!customerData[siteCode]) {
+          customerData[siteCode] = {
+            customerName,
+            paTotal: 0,
+            daTotal: 0,
+            excessPayment: 0
+          };
+        }
+
+        if (description === 'PA Manual Invoice') {
+          customerData[siteCode].paTotal += amountRaw;
+        } else if (description === 'DA Manual Invoice') {
+          customerData[siteCode].daTotal += amountRaw;
+        } else if (description.toLowerCase() === 'payment') {
+          customerData[siteCode].excessPayment += amountRaw;
+        }
+      });
+
+      const summaryArray = Object.entries(customerData).map(([siteCode, data]) => ({
+        siteCode,
+        customerName: data.customerName,
+        paTotal: data.paTotal,
+        daTotal: data.daTotal,
+        excessPayment: data.excessPayment,
+        grandTotal: data.paTotal + data.daTotal + data.excessPayment
+      })).filter(item => item.paTotal !== 0 || item.daTotal !== 0 || item.excessPayment !== 0);
+
+      rawSummaryData = summaryArray;
+      const sortedData = sortData([...summaryArray], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'summary',
+        sortType: currentSortType,
+        data: sortedData
+      });
+      
+      previousView = currentView;
+      currentView = 'summary';
+      isWithoutExcessView = false;
+
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No outstanding invoices found.</div>`;
+        return;
+      }
+
+      renderCustomerSummary(sortedData);
+    }
+
+    function renderCustomerSummary(data) {
+      const resultsDiv = document.getElementById('results');
+      const summaryArray = data;
+
+      let totalPA = 0;
+      let totalDA = 0;
+      let totalExcess = 0;
+      let totalGrand = 0;
+
+      let html = renderSortButtons('summary');
+      html += `<div class="section-title"><i class="fas fa-chart-bar"></i> Total Customer Outstanding Summary (PA & DA)</div>
+               <table>
+                 <thead>
+                   <tr>
+                     <th>Customer Name</th>
+                     <th>Site Code</th>
+                     <th>PA Outstanding (Rs.)</th>
+                     <th>DA Outstanding (Rs.)</th>
+                     <th>Excess Payment (Rs.)</th>
+                     <th>Total Outstanding (Rs.)</th>
+                   </tr>
+                 </thead>
+                 <tbody>`;
+
+      summaryArray.forEach(item => {
+        totalPA += item.paTotal;
+        totalDA += item.daTotal;
+        totalExcess += item.excessPayment;
+        totalGrand += item.grandTotal;
+
+        const excessDisplay = item.excessPayment < 0 
+          ? `(${formatAmount(Math.abs(item.excessPayment))})` 
+          : formatAmount(item.excessPayment);
+        const excessClass = item.excessPayment < 0 ? 'amount payment' : 'amount';
+
+        html += `<tr>
+          <td>${item.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${item.siteCode}')">${item.siteCode}</a></td>
+          <td class="amount">${formatAmount(item.paTotal)}</td>
+          <td class="amount">${formatAmount(item.daTotal)}</td>
+          <td class="${excessClass}">${excessDisplay}</td>
+          <td class="amount" style="font-weight: 700;">${formatAmount(item.grandTotal)}</td>
+        </tr>`;
+      });
+
+      const totalExcessDisplay = totalExcess < 0 
+        ? `(${formatAmount(Math.abs(totalExcess))})` 
+        : formatAmount(totalExcess);
+
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="2" style="text-align: right;">GRAND TOTAL</td>
+        <td class="amount">${formatAmount(totalPA)}</td>
+        <td class="amount">${formatAmount(totalDA)}</td>
+        <td class="amount payment">${totalExcessDisplay}</td>
+        <td class="amount">${formatAmount(totalGrand)}</td>
+      </tr>`;
+
+      html += `</tbody></table>`;
+
+      html += `<div class="summary-totals">
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice"></i> Total PA Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalPA)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice-dollar"></i> Total DA Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalDA)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-hand-holding-usd"></i> Total Excess Payments</h3>
+          <div class="amount-big" style="color: #38a169;">${totalExcess < 0 ? '(' : ''}Rs. ${formatAmount(Math.abs(totalExcess))}${totalExcess < 0 ? ')' : ''}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-chart-line"></i> Net Total Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalGrand)}</div>
+        </div>
+      </div>`;
+
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadSummaryPDF()"><i class="fas fa-file-pdf"></i> Download as PDF</button>
+        <button class="download-button excel" onclick="downloadSummaryExcel()"><i class="fas fa-file-excel"></i> Download as Excel</button>
+      </div>`;
+
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i> Go Back</button>
+      </div>`;
+
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadSummaryPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Total Customer Outstanding Summary (PA & DA)', 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+
+      const table = document.querySelector('#results table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save('Customer Outstanding Summary.pdf');
+    }
+
+    function downloadSummaryExcel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['Total Customer Outstanding Summary (PA & DA)']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'PA Outstanding (Rs.)', 
+        'DA Outstanding (Rs.)', 
+        'Excess Payment (Rs.)', 
+        'Total Outstanding (Rs.)'
+      ]);
+      
+      const summaryTable = document.querySelector('#results table tbody');
+      if (summaryTable) {
+        const rows = Array.from(summaryTable.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i >= 2 && i <= 5) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '').replace(/[()]/g, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = summaryTable.rows[summaryTable.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [];
+          for (let i = 0; i < totalsRow.cells.length; i++) {
+            let cellValue = totalsRow.cells[i].innerText || totalsRow.cells[i].textContent || '';
+            
+            if (i >= 2 && i <= 5) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '').replace(/[()]/g, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            totalsData.push(cellValue);
+          }
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 22 }, 
+        { wch: 22 }, 
+        { wch: 22 }, 
+        { wch: 25 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 5 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 5) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C >= 2 && C <= 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 5) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C >= 2 && C <= 5) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Customer Summary");
+      
+      const fileName = `Customer Outstanding Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    function downloadSummaryPDFWithoutExcess() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Customer Outstanding Summary', 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+
+      const table = document.querySelector('#results table');
+      const tableData = [];
+      
+      const headers = ['Customer Name', 'Site Code', 'PA Outstanding (Rs.)', 'DA Outstanding (Rs.)', 'Total Outstanding (Rs.)'];
+      tableData.push(headers);
+      
+      const rows = table.querySelectorAll('tbody tr');
+      Array.from(rows).slice(0, -1).forEach(row => {
+        const rowData = [
+          row.cells[0].textContent,
+          row.cells[1].textContent,
+          row.cells[2].textContent,
+          row.cells[3].textContent,
+          row.cells[5].textContent
+        ];
+        tableData.push(rowData);
+      });
+      
+      const totalsRow = rows[rows.length - 1];
+      if (totalsRow) {
+        const totalsData = [
+          'GRAND TOTAL',
+          '',
+          totalsRow.cells[2].textContent,
+          totalsRow.cells[3].textContent,
+          totalsRow.cells[5].textContent
+        ];
+        tableData.push(totalsData);
+      }
+      
+      doc.autoTable({
+        head: [headers],
+        body: tableData.slice(1),
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save('Customer Outstanding Summary.pdf');
+    }
+
+    function downloadSummaryExcelWithoutExcess() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['Customer Outstanding Summary']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'PA Outstanding (Rs.)', 
+        'DA Outstanding (Rs.)', 
+        'Total Outstanding (Rs.)'
+      ]);
+      
+      const summaryTable = document.querySelector('#results table tbody');
+      if (summaryTable) {
+        const rows = Array.from(summaryTable.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            if (i === 4) continue;
+            
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i >= 2 && i <= 3) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            } else if (i === 5) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = summaryTable.rows[summaryTable.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [
+            'GRAND TOTAL',
+            '',
+            parseFloat(totalsRow.cells[2].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            parseFloat(totalsRow.cells[3].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0),
+            parseFloat(totalsRow.cells[5].textContent.replace(/,/g, '').replace(/Rs\.\s*/, '') || 0)
+          ];
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 22 }, 
+        { wch: 22 }, 
+        { wch: 25 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 4 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 4) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C >= 2 && C <= 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 4) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C >= 2 && C <= 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Customer Summary");
+      
+      const fileName = `Customer Outstanding Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function showCustomerSummaryWithoutExcess() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading customer summary data (without excess payments)...</div>`;
+
+      const rows = await fetchSheetData();
+      const customerData = {};
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+
+        if (!siteCode || !customerName) return;
+
+        if (!customerData[siteCode]) {
+          customerData[siteCode] = {
+            customerName,
+            paTotal: 0,
+            daTotal: 0
+          };
+        }
+
+        if (description === 'PA Manual Invoice') {
+          customerData[siteCode].paTotal += amountRaw;
+        } else if (description === 'DA Manual Invoice') {
+          customerData[siteCode].daTotal += amountRaw;
+        }
+      });
+
+      const summaryArray = Object.entries(customerData).map(([siteCode, data]) => ({
+        siteCode,
+        customerName: data.customerName,
+        paTotal: data.paTotal,
+        daTotal: data.daTotal,
+        grandTotal: data.paTotal + data.daTotal
+      })).filter(item => item.paTotal !== 0 || item.daTotal !== 0);
+
+      rawSummaryWithoutExcessData = summaryArray;
+      const sortedData = sortData([...summaryArray], currentSortType);
+      
+      // Save current state to navigation history
+      navigationHistory.push({
+        view: 'summaryWithoutExcess',
+        sortType: currentSortType,
+        data: sortedData
+      });
+      
+      previousView = currentView;
+      currentView = 'summaryWithoutExcess';
+      isWithoutExcessView = true;
+
+      if (sortedData.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No outstanding invoices found.</div>`;
+        return;
+      }
+
+      renderCustomerSummaryWithoutExcess(sortedData);
+    }
+
+    function renderCustomerSummaryWithoutExcess(data) {
+      const resultsDiv = document.getElementById('results');
+      const summaryArray = data;
+
+      let totalPA = 0;
+      let totalDA = 0;
+      let totalGrand = 0;
+
+      let html = renderSortButtons('summaryWithoutExcess');
+      html += `<div class="section-title"><i class="fas fa-filter"></i> Customer Outstanding Summary (Without Excess Payments)</div>
+               <table>
+                 <thead>
+                   <tr>
+                     <th>Customer Name</th>
+                     <th>Site Code</th>
+                     <th>PA Outstanding (Rs.)</th>
+                     <th>DA Outstanding (Rs.)</th>
+                     <th>Total Outstanding (Rs.)</th>
+                   </tr>
+                 </thead>
+                 <tbody>`;
+
+      summaryArray.forEach(item => {
+        totalPA += item.paTotal;
+        totalDA += item.daTotal;
+        totalGrand += item.grandTotal;
+
+        html += `<tr>
+          <td>${item.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${item.siteCode}')">${item.siteCode}</a></td>
+          <td class="amount">${formatAmount(item.paTotal)}</td>
+          <td class="amount">${formatAmount(item.daTotal)}</td>
+          <td class="amount" style="font-weight: 700;">${formatAmount(item.grandTotal)}</td>
+        </tr>`;
+      });
+
+      html += `<tr style="background-color: #e6f2ff; font-weight: 700;">
+        <td colspan="2" style="text-align: right;">GRAND TOTAL</td>
+        <td class="amount">${formatAmount(totalPA)}</td>
+        <td class="amount">${formatAmount(totalDA)}</td>
+        <td class="amount">${formatAmount(totalGrand)}</td>
+      </tr>`;
+
+      html += `</tbody></table>`;
+
+      html += `<div class="summary-totals">
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice"></i> Total PA Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalPA)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-file-invoice-dollar"></i> Total DA Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalDA)}</div>
+        </div>
+        <div class="summary-card">
+          <h3><i class="fas fa-chart-line"></i> Total Outstanding</h3>
+          <div class="amount-big">Rs. ${formatAmount(totalGrand)}</div>
+        </div>
+      </div>`;
+
+      html += `<div class="download-container">
+        <button class="download-button" onclick="downloadSummaryWithoutExcessPDF()"><i class="fas fa-file-pdf"></i> Download as PDF</button>
+        <button class="download-button excel" onclick="downloadSummaryWithoutExcessExcel()"><i class="fas fa-file-excel"></i> Download as Excel</button>
+      </div>`;
+
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i> Go Back</button>
+      </div>`;
+
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadSummaryWithoutExcessPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Customer Outstanding Summary', 40, 60);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 80);
+
+      const table = document.querySelector('#results table');
+      
+      doc.autoTable({
+        html: table,
+        startY: 100,
+        theme: 'grid',
+        headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [204,204,204], lineWidth: 0.1 },
+        columnStyles: { 
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right' }
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save('Customer Outstanding Summary.pdf');
+    }
+
+    function downloadSummaryWithoutExcessExcel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push(['Customer Outstanding Summary']);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      wsData.push([
+        'Customer Name', 
+        'Site Code', 
+        'PA Outstanding (Rs.)', 
+        'DA Outstanding (Rs.)', 
+        'Total Outstanding (Rs.)'
+      ]);
+      
+      const summaryTable = document.querySelector('#results table tbody');
+      if (summaryTable) {
+        const rows = Array.from(summaryTable.rows).slice(0, -1);
+        rows.forEach(row => {
+          const rowData = [];
+          for (let i = 0; i < row.cells.length; i++) {
+            let cellValue = row.cells[i].innerText || row.cells[i].textContent || '';
+            
+            if (i >= 2 && i <= 4) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          }
+          wsData.push(rowData);
+        });
+        
+        const totalsRow = summaryTable.rows[summaryTable.rows.length - 1];
+        if (totalsRow) {
+          const totalsData = [];
+          for (let i = 0; i < totalsRow.cells.length; i++) {
+            let cellValue = totalsRow.cells[i].innerText || totalsRow.cells[i].textContent || '';
+            
+            if (i >= 2 && i <= 4) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            totalsData.push(cellValue);
+          }
+          wsData.push(totalsData);
+        }
+      }
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 15 }, 
+        { wch: 22 }, 
+        { wch: 22 }, 
+        { wch: 25 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 4 } });
+            }
+          }
+          else if (R === 5) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (R > 5 && R < wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 4) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C >= 2 && C <= 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+          else if (R === wsData.length - 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C >= 2 && C <= 4) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C >= 2 && C <= 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Customer Summary");
+      
+      const fileName = `Customer Outstanding Summary_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function searchByCustomerName() {
+      const input = document.getElementById('customerNameInput').value.trim().toLowerCase();
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+
+      if (!input) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> Please enter part of a customer name.</div>`;
+        return;
+      }
+
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading data...</div>`;
+
+      const rows = await fetchSheetData();
+      const matches = new Map(); // Using Map to store unique site codes with their data
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        const customerName = row.c[2]?.v?.toString() || '';
+        const description = row.c[5]?.v || '';
+        const amountRaw = row.c[6]?.v || 0;
+        
+        if (customerName.toLowerCase().includes(input)) {
+          if (!matches.has(siteCode)) {
+            matches.set(siteCode, {
+              siteCode,
+              customerName,
+              paTotal: 0,
+              daTotal: 0,
+              excessPayment: 0
+            });
+          }
+          
+          const siteData = matches.get(siteCode);
+          
+          if (description === 'PA Manual Invoice') {
+            siteData.paTotal += amountRaw;
+          } else if (description === 'DA Manual Invoice') {
+            siteData.daTotal += amountRaw;
+          } else if (description.toLowerCase() === 'payment') {
+            siteData.excessPayment += amountRaw;
+          }
+        }
+      });
+
+      if (matches.size === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No sites found for Customer Name containing: <strong>${input}</strong></div>`;
+        return;
+      }
+
+      let html = `<div class="section-title"><i class="fas fa-users"></i> Matching Sites</div><table><thead><tr>
+        <th>Customer Name</th><th>Site Code</th><th>PA Outstanding (Rs.)</th><th>DA Outstanding (Rs.)</th><th>Excess Payment (Rs.)</th><th>Total Outstanding (Rs.)</th></tr></thead><tbody>`;
+
+      matches.forEach(m => {
+        const grandTotal = m.paTotal + m.daTotal + m.excessPayment;
+        const excessDisplay = m.excessPayment < 0 
+          ? `(${formatAmount(Math.abs(m.excessPayment))})` 
+          : formatAmount(m.excessPayment);
+        const excessClass = m.excessPayment < 0 ? 'amount payment' : 'amount';
+        
+        html += `<tr>
+          <td>${m.customerName}</td>
+          <td><a class="site-link" onclick="searchBySiteCode('${m.siteCode}')">${m.siteCode}</a></td>
+          <td class="amount">${formatAmount(m.paTotal)}</td>
+          <td class="amount">${formatAmount(m.daTotal)}</td>
+          <td class="${excessClass}">${excessDisplay}</td>
+          <td class="amount" style="font-weight: 700;">${formatAmount(grandTotal)}</td>
+        </tr>`;
+      });
+
+      html += `</tbody></table>`;
+      resultsDiv.innerHTML = html;
+    }
+
+    async function searchBySiteCode(code = null) {
+      const input = (code || document.getElementById('siteCodeInput').value.trim().toUpperCase());
+      currentSiteCode = input;
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+
+      if (!input) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> Please enter a site code to search.</div>`;
+        return;
+      }
+
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading data...</div>`;
+
+      const rows = await fetchSheetData();
+      const paInvoices = [];
+      const daInvoices = [];
+      const payments = [];
+
+      rows.forEach(row => {
+        const siteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+        if (siteCode === input) {
+          const customerName = row.c[2]?.v || '';
+          const invNo = row.c[3]?.v || '';
+          const date = row.c[4]?.f || row.c[4]?.v || '';
+          const description = row.c[5]?.v || '';
+          const amountRaw = row.c[6]?.v || 0;
+          const record = { customerName, invNo, date, description, amountRaw };
+
+          if (description === 'PA Manual Invoice') paInvoices.push(record);
+          else if (description === 'DA Manual Invoice') daInvoices.push(record);
+          else if (description.toLowerCase() === 'payment') payments.push(record);
+        }
+      });
+
+      function sortInvoices(invoices) {
+        return invoices.sort((a, b) => {
+          const dateA = parseDate(a.date);
+          const dateB = parseDate(b.date);
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return dateA - dateB;
+        });
+      }
+
+      const sortedPA = sortInvoices(paInvoices);
+      const sortedDA = sortInvoices(daInvoices);
+
+      if (!isWithoutExcessView) {
+        payments.forEach(p => {
+          const record = { ...p, description: 'Excess Payment', amountRaw: -Math.abs(p.amountRaw) };
+          if (sortedPA.length > 0 && sortedDA.length === 0) sortedPA.push(record);
+          else if (sortedDA.length > 0 && sortedPA.length === 0) sortedDA.push(record);
+          else sortedPA.push(record);
+        });
+      }
+
+      if (sortedPA.length === 0 && sortedDA.length === 0) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No invoices or payments found for Site Code: <strong>${input}</strong></div>`;
+        return;
+      }
+
+      function buildTable(title, invoices) {
+        let total = 0;
+        let tableHTML = `<div class="section-title"><i class="fas fa-file-invoice"></i> ${title}</div><table><thead><tr>
+          <th>Customer Name</th><th>Invoice No / Ref</th><th>Date</th><th>Description</th><th>Amount (Rs.)</th><th>Due Days</th>
+        </tr></thead><tbody>`;
+
+        invoices.forEach(({ customerName, invNo, date, description, amountRaw }) => {
+          const isPayment = description.toLowerCase().includes('payment');
+          const displayAmount = isPayment ? `(${formatAmount(Math.abs(amountRaw))})` : formatAmount(amountRaw);
+          const amountClass = isPayment ? 'amount payment' : 'amount';
+          total += amountRaw;
+          
+          const dueDays = calculateDueDays(date);
+          const dueClass = getDueClass(dueDays);
+
+          tableHTML += `<tr>
+            <td>${customerName}</td>
+            <td><a class="invoice-link" onclick="showInvoiceBreakdown('${invNo}', '${input}')">${invNo}</a></td>
+            <td>${date}</td>
+            <td>${description}</td>
+            <td class="${amountClass}">${displayAmount}</td>
+            <td class="overdue ${dueClass}">${dueDays}</td>
+          </tr>`;
+        });
+
+        tableHTML += `<tr><td colspan="4" style="text-align:right; font-weight:700;">Total Outstanding</td>
+          <td class="amount" style="font-weight:700;">${formatAmount(total)}</td>
+          <td></td></tr></tbody></table>`;
+        return { html: tableHTML, total };
+      }
+
+      let html = `<div class="site-code-header"><i class="fas fa-map-marker-alt"></i> Site Code: ${input}</div>`;
+      let paTotal = 0;
+      let daTotal = 0;
+      if (sortedPA.length > 0) {
+        const { html: paHTML, total } = buildTable('Outstanding PA Invoices', sortedPA);
+        html += paHTML; paTotal = total;
+      }
+      if (sortedDA.length > 0) {
+        const { html: daHTML, total } = buildTable('Outstanding DA Invoices', sortedDA);
+        html += daHTML; daTotal = total;
+      }
+
+      const grandTotal = paTotal + daTotal;
+      const titleText = isWithoutExcessView 
+        ? `Total Outstanding (PA + DA): Rs. ${formatAmount(grandTotal)}`
+        : `Total Outstanding (PA + DA): Rs. ${formatAmount(grandTotal)}`;
+      
+      html += `<div class="grand-total">${titleText}</div>
+               <div class="download-container">
+                 <button class="download-button" onclick="downloadPDF()"><i class="fas fa-file-pdf"></i> Download as PDF</button>
+                 <button class="download-button excel" onclick="downloadSiteCodeExcel()"><i class="fas fa-file-excel"></i> Download as Excel</button>
+               </div>`;
+
+      html += `<div style="text-align: center;">
+        <button class="go-back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i> Go Back</button>
+      </div>`;
+
+      resultsDiv.innerHTML = html;
+    }
+
+    function downloadSiteCodeExcel() {
+      const wb = XLSX.utils.book_new();
+      
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      
+      const wsData = [];
+      
+      wsData.push(['DOK Solutions Lanka (Pvt) Ltd']);
+      wsData.push([`Outstanding Invoices - Site Code: ${currentSiteCode}`]);
+      wsData.push([`As of: ${reportDate}`]);
+      wsData.push([`Generated: ${new Date().toLocaleString()}`]);
+      wsData.push([]);
+      
+      const tables = document.querySelectorAll('#results table');
+      let currentRow = 6;
+      
+      tables.forEach((table, tableIndex) => {
+        if (tableIndex > 0) {
+          wsData.push([]);
+          currentRow++;
+        }
+        
+        const titleElement = table.previousElementSibling;
+        if (titleElement && titleElement.classList.contains('section-title')) {
+          wsData.push([titleElement.textContent]);
+          currentRow++;
+        }
+        
+        const headers = [];
+        const headerCells = table.querySelectorAll('thead th');
+        headerCells.forEach(cell => {
+          headers.push(cell.textContent);
+        });
+        wsData.push(headers);
+        currentRow++;
+        
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+          const rowData = [];
+          const cells = row.querySelectorAll('td');
+          cells.forEach((cell, index) => {
+            let cellValue = cell.innerText || cell.textContent || '';
+            
+            // Fix: Correctly identify the amount column (index 4) and format it
+            if (index === 4) {
+              cellValue = cellValue.replace(/,/g, '').replace(/Rs\.\s*/, '').replace(/[()]/g, '');
+              cellValue = parseFloat(cellValue) || 0;
+            }
+            
+            rowData.push(cellValue);
+          });
+          wsData.push(rowData);
+          currentRow++;
+        });
+      });
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const colWidths = [
+        { wch: 35 }, 
+        { wch: 20 }, 
+        { wch: 15 }, 
+        { wch: 25 }, 
+        { wch: 20 },
+        { wch: 15 }
+      ];
+      ws['!cols'] = colWidths;
+      
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      
+      for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+          
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 16, color: { rgb: "00264D" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['merges'] || [];
+              ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
+            }
+          }
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 14, color: { rgb: "003366" } },
+              alignment: { horizontal: "center", vertical: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 5 } });
+            }
+          }
+          else if (R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              font: { sz: 11, color: { rgb: "666666" } },
+              alignment: { horizontal: "center" }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
+            }
+          }
+          else if (wsData[R] && wsData[R].length === 1 && wsData[R][0].includes('Outstanding')) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 13, color: { rgb: "003366" } },
+              alignment: { horizontal: "left", vertical: "center" },
+              fill: { fgColor: { rgb: "F0F8FF" } }
+            };
+            if (C === 0) {
+              ws['!merges'] = ws['!merges'] = ws['!merges'] || [];
+              ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 5 } });
+            }
+          }
+          else if (wsData[R] && wsData[R].length > 1 && 
+                   (wsData[R][0] === 'Customer Name' || wsData[R][0] === 'Invoice No / Ref')) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "3399FF" } },
+              alignment: { horizontal: "center", vertical: "center", wrapText: true },
+              border: {
+                top: { style: "thin", color: { rgb: "CCE0FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+          }
+          else if (wsData[R] && wsData[R].length > 1 && 
+                   !wsData[R][0].includes('Total Outstanding')) {
+            ws[cellAddress].s = {
+              font: { sz: 11 },
+              alignment: { 
+                horizontal: (C === 4) ? "right" : "left",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "E6F2FF" } },
+                bottom: { style: "thin", color: { rgb: "E6F2FF" } },
+                left: { style: "thin", color: { rgb: "E6F2FF" } },
+                right: { style: "thin", color: { rgb: "E6F2FF" } }
+              },
+              fill: { fgColor: { rgb: "FFFFFF" } }
+            };
+            
+            if (C === 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+            else if (C === 5) {
+              ws[cellAddress].z = '#,##0';
+            }
+          }
+          else if (wsData[R] && wsData[R].length > 1 && 
+                   wsData[R][0] && wsData[R][0].includes('Total Outstanding')) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 12, color: { rgb: "00264D" } },
+              fill: { fgColor: { rgb: "E6F2FF" } },
+              alignment: { 
+                horizontal: (C === 4) ? "right" : "right",
+                vertical: "center"
+              },
+              border: {
+                top: { style: "medium", color: { rgb: "3399FF" } },
+                bottom: { style: "thin", color: { rgb: "CCE0FF" } },
+                left: { style: "thin", color: { rgb: "CCE0FF" } },
+                right: { style: "thin", color: { rgb: "CCE0FF" } }
+              }
+            };
+            
+            if (C === 4) {
+              ws[cellAddress].z = '"Rs. "#,##0.00';
+            }
+          }
+        }
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, `Site ${currentSiteCode}`);
+      
+      const fileName = `Site Code ${currentSiteCode}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    async function searchByInvoiceNo() {
+      const input = document.getElementById('invoiceNoInput').value.trim();
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+
+      if (!input) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> Please enter an invoice number to search.</div>`;
+        return;
+      }
+
+      resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-spinner fa-spin"></i> Loading data...</div>`;
+
+      const rows = await fetchSheetData();
+      let found = null;
+
+      rows.forEach(row => {
+        const invNo = row.c[3]?.v?.toString().toUpperCase() || '';
+        if (invNo === input.toUpperCase()) {
+          found = {
+            siteCode: row.c[1]?.v || '',
+            customerName: row.c[2]?.v || '',
+            invNo,
+            dueDate: row.c[4]?.f || row.c[4]?.v || '',
+            description: row.c[5]?.v || '',
+            amount: formatAmount(row.c[6]?.v || 0),
+          };
+        }
+      });
+
+      if (!found) {
+        resultsDiv.innerHTML = `<div class="not-found"><i class="fas fa-exclamation-circle"></i> No invoice found with Invoice Number: <strong>${input}</strong></div>`;
+        return;
+      }
+
+      let html = `
+        <div class="section-title"><i class="fas fa-file-invoice"></i> Invoice Details</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice No</th>
+              <th>Customer Name</th>
+              <th>Site Code</th>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount (Rs.)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a class="invoice-link" onclick="showInvoiceBreakdown('${found.invNo}', '${found.siteCode}')">${found.invNo}</a></td>
+              <td>${found.customerName}</td>
+              <td>${found.siteCode}</td>
+              <td>${found.dueDate}</td>
+              <td>${found.description}</td>
+              <td class="amount">${found.amount}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+      resultsDiv.innerHTML = html;
+    }
+
+    // New function to show invoice breakdown in a modal
+    async function showInvoiceBreakdown(invoiceNo, siteCode) {
+      const modal = document.getElementById('invoiceModal');
+      const modalBody = document.getElementById('invoiceModalBody');
+      
+      // Show loading state
+      modalBody.innerHTML = `
+        <div style="text-align: center; padding: 40px 0;">
+          <i class="fas fa-spinner fa-spin fa-3x"></i>
+          <p style="margin-top: 20px;">Loading invoice details...</p>
+        </div>
+      `;
+      
+      modal.style.display = 'block';
+      
+      try {
+        const rows = await fetchSheetData();
+        let invoiceData = null;
+        
+        // Find the invoice with the matching invoice number and site code
+        for (const row of rows) {
+          const rowInvNo = row.c[3]?.v?.toString() || '';
+          const rowSiteCode = row.c[1]?.v?.toString().toUpperCase() || '';
+          
+          if (rowInvNo === invoiceNo && rowSiteCode === siteCode) {
+            invoiceData = {
+              customerName: row.c[2]?.v || '',
+              siteCode: rowSiteCode,
+              invNo: rowInvNo,
+              date: row.c[4]?.f || row.c[4]?.v || '',
+              description: row.c[5]?.v || '',
+              amountRaw: row.c[6]?.v || 0,
+              // Invoice Balance is in column G (index 6)
+              invoiceBalance: row.c[6]?.v || 0,
+              // Tax breakdown values from columns M through R (indices 12-17)
+              woTaxValue: row.c[12]?.v || 0,
+              nbt: row.c[13]?.v || 0,
+              sscl: row.c[14]?.v || 0,
+              vat: row.c[15]?.v || 0,
+              svat: row.c[16]?.v || 0,
+              withTaxValue: row.c[17]?.v || 0
+            };
+            break;
+          }
+        }
+        
+        if (!invoiceData) {
+          modalBody.innerHTML = `
+            <div class="not-found">
+              <i class="fas fa-exclamation-circle"></i>
+              Invoice details not found.
+            </div>
+          `;
+          return;
+        }
+        
+        // Build the HTML for the modal body with conditional tax components
+        let html = `
+          <div class="invoice-details">
+            <div class="detail-item">
+              <div class="detail-label">Invoice Number</div>
+              <div class="detail-value">${invoiceData.invNo}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Customer Name</div>
+              <div class="detail-value">${invoiceData.customerName}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Site Code</div>
+              <div class="detail-value">${invoiceData.siteCode}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Invoice Date</div>
+              <div class="detail-value">${invoiceData.date}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Description</div>
+              <div class="detail-value">${invoiceData.description}</div>
+            </div>
+          </div>
+          
+          <div class="outstanding-amount">
+            <div class="label">Outstanding Amount</div>
+            <div class="value">Rs. ${formatAmount(invoiceData.invoiceBalance)}</div>
+          </div>
+          
+          <div class="tax-breakdown">
+            <h3><i class="fas fa-receipt"></i> Tax Breakdown</h3>
+            <table class="tax-table">
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Amount (Rs.)</th>
+                </tr>
+              </thead>
+              <tbody>`;
+        
+        // Add tax components only if they have values (not N/A or zero)
+        if (invoiceData.nbt && invoiceData.nbt !== 0 && invoiceData.nbt !== 'N/A') {
+          html += `<tr>
+            <td>NBT</td>
+            <td class="amount">${formatAmount(invoiceData.nbt)}</td>
+          </tr>`;
+        }
+        
+        if (invoiceData.sscl && invoiceData.sscl !== 0 && invoiceData.sscl !== 'N/A') {
+          html += `<tr>
+            <td>SSCL</td>
+            <td class="amount">${formatAmount(invoiceData.sscl)}</td>
+          </tr>`;
+        }
+        
+        if (invoiceData.vat && invoiceData.vat !== 0 && invoiceData.vat !== 'N/A') {
+          html += `<tr>
+            <td>VAT</td>
+            <td class="amount">${formatAmount(invoiceData.vat)}</td>
+          </tr>`;
+        }
+        
+        if (invoiceData.svat && invoiceData.svat !== 0 && invoiceData.svat !== 'N/A') {
+          html += `<tr>
+            <td>SVAT</td>
+            <td class="amount">${formatAmount(invoiceData.svat)}</td>
+          </tr>`;
+        }
+        
+        // Always show W/O TAX Value and With Tax Value
+        html += `<tr class="total-row">
+          <td>W/O TAX Value</td>
+          <td class="amount">${formatAmount(invoiceData.woTaxValue)}</td>
+        </tr>
+        <tr class="total-row">
+          <td>With Tax Value</td>
+          <td class="amount">${formatAmount(invoiceData.withTaxValue)}</td>
+        </tr>`;
+        
+        html += `</tbody>
+            </table>
+          </div>
+        `;
+        
+        modalBody.innerHTML = html;
+      } catch (error) {
+        console.error('Error fetching invoice details:', error);
+        modalBody.innerHTML = `
+          <div class="not-found">
+            <i class="fas fa-exclamation-triangle"></i>
+            Error loading invoice details. Please try again.
+          </div>
+        `;
+      }
+    }
+
+    function closeInvoiceModal() {
+      document.getElementById('invoiceModal').style.display = 'none';
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(14);
+      doc.text('DOK Solutions Lanka (Pvt) Ltd', 40, 40);
+      doc.setFontSize(12);
+      doc.text('Outstanding Invoices Summary', 40, 60);
+      if (currentSiteCode) {
+        doc.text(`Site Code: ${currentSiteCode}`, 40, 80);
+      }
+
+      const tables = document.querySelectorAll('#results table');
+      let startY = 100;
+
+      tables.forEach(table => {
+        // Fix: Right-align the amount column (index 4) and center-align due days (index 5)
+        doc.autoTable({
+          html: table,
+          startY,
+          theme: 'grid',
+          headStyles: { fillColor: [51,153,255], halign: 'center', fontSize: 9 },
+          styles: { fontSize: 8, cellPadding: 4, lineColor: [204,204,204], lineWidth: 0.1 },
+          columnStyles: { 
+            4: { halign: 'right' },  // Amount column
+            5: { halign: 'center' }  // Due days column
+          },
+          margin: { left: 40, right: 40 },
+          // Fix: Make sure the total row is at the bottom of the invoice values
+          didParseCell: function(data) {
+            // Check if this is the total row
+            if (data.row.raw && data.row.raw.cells && 
+                data.row.raw.cells && 
+                data.row.raw.cells[0] && 
+                data.row.raw.cells[0].textContent.includes('Total Outstanding')) {
+              // Apply special styling to the total row
+              data.cell.styles.fillColor = [230, 242, 255];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        });
+        startY = doc.lastAutoTable.finalY + 18;
+      });
+
+      const totalText = document.querySelector('#results .grand-total')?.innerText || '';
+      if (totalText) {
+        const cleanTotalText = totalText.replace(' - Without Excess Payments', '');
+        doc.text(cleanTotalText, 40, startY + 8);
+      }
+
+      const fileName = currentSiteCode
+        ? `Outstanding Invoices Summary-${currentSiteCode}.pdf`
+        : `Outstanding Invoices Summary.pdf`;
+      doc.save(fileName);
+    }
+
+    function goBack() {
+      // If navigation history has items, go back to the previous state
+      if (navigationHistory.length > 1) {
+        // Remove current state from history
+        navigationHistory.pop();
+        
+        // Get the previous state
+        const previousState = navigationHistory[navigationHistory.length - 1];
+        
+        // Restore the previous state
+        currentSortType = previousState.sortType;
+        currentView = previousState.view;
+        
+        // Re-render the previous view with its data and sort type
+        if (previousState.view === 'summary') {
+          renderCustomerSummary(previousState.data);
+        } else if (previousState.view === 'summaryWithoutExcess') {
+          renderCustomerSummaryWithoutExcess(previousState.data);
+        } else if (previousState.view === 'ageAnalysis') {
+          renderAgeAnalysis(previousState.data);
+        } else if (previousState.view === 'svat') {
+          renderSVATInvoices(previousState.data);
+        } else if (previousState.view === 'ageFilter') {
+          currentAgeFilter = previousState.ageRange;
+          renderInvoicesByAge(previousState.data, previousState.ageRange);
+        } else if (previousState.view === 'exceeding360') {
+          selectedReportingMonth = previousState.reportingMonth;
+          renderInvoicesExceeding360SelectedMonth(previousState.data);
+        }
+      } else {
+        // If no history, clear results and return to main menu
+        document.getElementById('results').innerHTML = '';
+        currentView = null;
+        previousView = null;
+        navigationHistory = [];
+        currentAgeFilter = null;
+        selectedReportingMonth = null;
+        
+        // Hide age filter container when going back to main menu
+        document.getElementById('ageFilterContainer').classList.remove('show');
+        const button = document.querySelector('.search-box:nth-child(8) button');
+        button.innerHTML = '<i class="fas fa-filter"></i> Show Age Filter Options';
+      }
+    }
+  </script>
+</body>
+</html>
