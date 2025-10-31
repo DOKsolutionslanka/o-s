@@ -4752,7 +4752,7 @@
             <tr>
               <td><a class="invoice-link" onclick="showInvoiceBreakdown('${found.invNo}', '${found.siteCode}')">${found.invNo}</a></td>
               <td>${found.customerName}</td>
-              <td>${found.siteCode}</td>
+              <td><a class="site-link" onclick="searchBySiteCode('${found.siteCode}')">${found.siteCode}</a></td>
               <td>${found.dueDate}</td>
               <td>${found.description}</td>
               <td class="amount">${found.amount}</td>
